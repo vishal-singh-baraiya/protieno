@@ -290,37 +290,34 @@ export default function App() {
                     <p className="mt-2 text-lg text-gray-400">Design, analyze, and evolve novel proteins with AI.</p>
                 </header>
 
-                <main className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Panel */}
-                    <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col space-y-6">
-                        <div>
-                            <label htmlFor="prompt" className="block text-lg font-medium text-cyan-400 mb-2">1. Describe Initial Desired Function</label>
-                            <textarea id="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full h-24 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g., An enzyme that can bind to and degrade PET plastic..."/>
-                        </div>
-                        <button onClick={handleGenerate} disabled={isLoading} className="w-full bg-cyan-600 text-white font-bold py-3 px-4 rounded-md hover:bg-cyan-500 disabled:bg-gray-600 transition flex items-center justify-center text-lg">
-                            {isLoading ? 'Designing...' : 'Run Initial Design'}
-                        </button>
-                        
-                        {generatedSequence && (
-                            <div className="border-t-2 border-cyan-800/50 pt-6 space-y-4">
-                                <h3 className="text-lg font-medium text-cyan-400 mb-2">2. Evolve This Design</h3>
-                                <textarea value={evolutionPrompt} onChange={(e) => setEvolutionPrompt(e.target.value)} className="w-full h-20 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g., Increase stability in high temperatures."/>
-                                <button onClick={handleEvolve} disabled={isLoading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-500 disabled:bg-gray-600 transition flex items-center justify-center text-lg">
-                                    {isLoading ? 'Evolving...' : 'Evolve Protein'}
-                                </button>
+                <main className="flex flex-col gap-8">
+                    {/* Top Section: Inputs and Viewer */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Left Panel: Inputs, Evolution, Metrics */}
+                        <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col space-y-6">
+                            <div>
+                                <label htmlFor="prompt" className="block text-lg font-medium text-cyan-400 mb-2">1. Describe Initial Desired Function</label>
+                                <textarea id="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full h-24 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g., An enzyme that can bind to and degrade PET plastic..."/>
                             </div>
-                        )}
-
-                        {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-3 rounded-md">{error}</div>}
-
-                        {generatedSequence && (
-                            <div className="space-y-4 pt-4">
-                                <div>
-                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">3. AI Analysis</h3>
-                                    <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md min-h-[80px] text-gray-300 italic">{analysis}</div>
+                            <button onClick={handleGenerate} disabled={isLoading} className="w-full bg-cyan-600 text-white font-bold py-3 px-4 rounded-md hover:bg-cyan-500 disabled:bg-gray-600 transition flex items-center justify-center text-lg">
+                                {isLoading ? 'Designing...' : 'Run Initial Design'}
+                            </button>
+                            
+                            {generatedSequence && (
+                                <div className="border-t-2 border-cyan-800/50 pt-6 space-y-4">
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">2. Evolve This Design</h3>
+                                    <textarea value={evolutionPrompt} onChange={(e) => setEvolutionPrompt(e.target.value)} className="w-full h-20 p-3 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 transition" placeholder="e.g., Increase stability in high temperatures."/>
+                                    <button onClick={handleEvolve} disabled={isLoading} className="w-full bg-purple-600 text-white font-bold py-3 px-4 rounded-md hover:bg-purple-500 disabled:bg-gray-600 transition flex items-center justify-center text-lg">
+                                        {isLoading ? 'Evolving...' : 'Evolve Protein'}
+                                    </button>
                                 </div>
+                            )}
+
+                            {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-3 rounded-md">{error}</div>}
+
+                            {generatedSequence && (
                                 <div>
-                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">4. Performance Metrics</h3>
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-2 mt-4">Performance Metrics</h3>
                                     <div className="grid grid-cols-2 gap-4 text-center">
                                         <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
                                             <div className="text-sm text-gray-400">Binding Affinity</div>
@@ -332,31 +329,43 @@ export default function App() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
-                                    <h3 className="text-lg font-medium text-cyan-400 mb-3 flex justify-between items-center">
-                                        <span>5. Design Validation</span>
-                                        <ConfidencePill confidence={designConfidence} />
-                                    </h3>
-                                    <p className="text-sm text-gray-400 mb-2">This is a computational prediction. Real-world validation requires the following lab work:</p>
-                                    <ol className="list-decimal list-inside text-gray-300 space-y-1">
-                                        {validationSteps.map((step, index) => <li key={index}>{step}</li>)}
-                                    </ol>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">6. Generated Amino Acid Sequence</h3>
-                                    <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md font-mono text-sm break-words min-h-[120px]">{generatedSequence}</div>
-                                </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+
+                        {/* Right Panel: 3D Viewer */}
+                        <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col">
+                             <h2 className="text-lg font-medium text-cyan-400 mb-4 text-center">3. Predicted 3D Structure</h2>
+                             <div className="flex-grow">
+                                <ProteinViewer pdbData={pdbData} bindingPocketResidues={bindingPocketResidues} />
+                             </div>
+                        </div>
                     </div>
 
-                    {/* Right Panel */}
-                    <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col">
-                         <h2 className="text-lg font-medium text-cyan-400 mb-4 text-center">Predicted 3D Structure</h2>
-                         <div className="flex-grow">
-                            <ProteinViewer pdbData={pdbData} bindingPocketResidues={bindingPocketResidues} />
-                         </div>
-                    </div>
+                    {/* Bottom Section: Analysis and Validation */}
+                    {generatedSequence && (
+                        <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col space-y-6">
+                            <div>
+                                <h3 className="text-lg font-medium text-cyan-400 mb-2">4. AI Analysis</h3>
+                                <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md min-h-[80px] text-gray-300 italic">{analysis}</div>
+                            </div>
+
+                            <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                                <h3 className="text-lg font-medium text-cyan-400 mb-3 flex justify-between items-center">
+                                    <span>5. Design Validation</span>
+                                    <ConfidencePill confidence={designConfidence} />
+                                </h3>
+                                <p className="text-sm text-gray-400 mb-2">This is a computational prediction. Real-world validation requires the following lab work:</p>
+                                <ol className="list-decimal list-inside text-gray-300 space-y-1">
+                                    {validationSteps.map((step, index) => <li key={index}>{step}</li>)}
+                                </ol>
+                            </div>
+
+                            <div>
+                                <h3 className="text-lg font-medium text-cyan-400 mb-2">6. Generated Amino Acid Sequence</h3>
+                                <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md font-mono text-sm break-words min-h-[120px]">{generatedSequence}</div>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
         </div>
