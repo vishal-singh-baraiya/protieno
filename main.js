@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+
 // Helper function to fetch PDB data
 const fetchPdbData = async (pdbId) => {
     if (!pdbId) return null;
@@ -124,7 +125,7 @@ export default function App() {
     const [bindingPocketResidues, setBindingPocketResidues] = useState([]);
     
     const callGeminiAPI = async (userPrompt, evolutionParams = null) => {
-        const apiKey = ""; // Leave empty
+        const apiKey = process.env.API_KEY; // Leave empty
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
         let fullPrompt;
