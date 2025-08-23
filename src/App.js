@@ -93,7 +93,7 @@ const ProteinViewer = ({ pdbData, bindingPocketResidues }) => {
                     </div>
                 )}
             </div>
-            {pdbData && bindingPocketResidues && (
+            {pdbData && bindingPocketResidues && bindingPocketResidues.length > 0 && (
                 <div className="flex justify-center items-center mt-4">
                     <label className="flex items-center cursor-pointer">
                         <div className="relative">
@@ -109,6 +109,7 @@ const ProteinViewer = ({ pdbData, bindingPocketResidues }) => {
     );
 };
 
+
 // Main App Component
 export default function App() {
     const [prompt, setPrompt] = useState('An enzyme that can bind to and degrade PET plastic.');
@@ -121,17 +122,20 @@ export default function App() {
     const [bindingAffinity, setBindingAffinity] = useState(null);
     const [predictedStability, setPredictedStability] = useState(null);
     const [bindingPocketResidues, setBindingPocketResidues] = useState([]);
+    const [designConfidence, setDesignConfidence] = useState('');
+    const [validationSteps, setValidationSteps] = useState([]);
     
     const callGeminiAPI = async (userPrompt, evolutionParams = null) => {
-        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        
-        if (!apiKey) {
-            throw new Error("API key not configured. Please add REACT_APP_GEMINI_API_KEY to your environment variables.");
-        }
-        
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+        const apiKey = process.env.REACT_APP_GEMINI_API_KEY; // Leave empty
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
         let fullPrompt;
+        const commonInstructions = `
+            8.  **Assess Confidence:** Provide a "design_confidence" score ('High', 'Promising', 'Experimental').
+            9.  **Outline Validation:** List the necessary "experimental_validation_steps" as an array of strings.
+            10. **Format Output:** Return a single, clean JSON object with all required keys.
+        `;
+
         if (evolutionParams) {
             fullPrompt = `
                 You are a world-class computational biologist AI specializing in protein evolution.
@@ -141,13 +145,13 @@ export default function App() {
                 User's Goal for Evolution: "${evolutionParams.feedback}"
 
                 Follow these steps precisely:
-                1.  **Analyze Goal:** Briefly describe the mutations required to achieve the goal.
-                2.  **Evolve Sequence:** Generate a new sequence with targeted mutations.
+                1.  **Analyze Goal:** Briefly describe the mutations required in a field named "analysis_goal".
+                2.  **Evolve Sequence:** Generate a new sequence in a field named "evolved_sequence".
                 3.  **Simulate Binding:** Provide an updated "binding_affinity_score" (kcal/mol).
                 4.  **Predict Stability:** Provide an updated "predicted_stability_score".
-                5.  **Identify Binding Pocket:** List the key residue numbers forming the binding pocket as an array of integers in "binding_pocket_residues".
-                6.  **Find PDB Template:** Identify a real PDB entry with a similar structural fold for visualization. Provide its 4-character "pdb_id".
-                7.  **Format Output:** Return a single JSON object with all the required keys. Do not include any text outside of the JSON object.
+                5.  **Identify Binding Pocket:** List key residue numbers in "binding_pocket_residues".
+                6.  **Find PDB Template:** Identify a real PDB entry for visualization ("pdb_id").
+                ${commonInstructions}
             `;
         } else {
             fullPrompt = `
@@ -156,13 +160,13 @@ export default function App() {
                 User's desired function: "${userPrompt}"
 
                 Follow these steps precisely:
-                1.  **Analyze Function:** Describe the key structural and chemical features required.
-                2.  **Generate Sequence:** Create a plausible, novel amino acid sequence (80-150 residues).
-                3.  **Simulate Binding:** Perform a simulated molecular docking. Provide a "binding_affinity_score" in kcal/mol.
+                1.  **Analyze Function:** Describe key structural features in a field named "analysis".
+                2.  **Generate Sequence:** Create a plausible, novel amino acid sequence (80-150 residues) in a field named "sequence". This can be a string or an object with an "amino_acid_sequence" key.
+                3.  **Simulate Binding:** Provide a "binding_affinity_score" (kcal/mol).
                 4.  **Predict Stability:** Calculate a "predicted_stability_score".
-                5.  **Identify Binding Pocket:** List the key residue numbers forming the binding pocket as an array of integers in "binding_pocket_residues".
-                6.  **Find PDB Template:** Identify a real PDB entry with a similar structural fold for visualization. Provide its 4-character "pdb_id".
-                7.  **Format Output:** Return a single JSON object with all the required keys. Do not include any text outside of the JSON object.
+                5.  **Identify Binding Pocket:** List key residue numbers in "binding_pocket_residues".
+                6.  **Find PDB Template:** Identify a real PDB entry for visualization ("pdb_id").
+                ${commonInstructions}
             `;
         }
 
@@ -175,29 +179,18 @@ export default function App() {
         let delay = 1000;
         for (let i = 0; i < 5; i++) {
             try {
-                response = await fetch(apiUrl, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify(payload) 
-                });
+                response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (response.ok) break;
-            } catch (error) { 
-                console.error(`Attempt ${i + 1} failed:`, error);
-            }
+            } catch (error) { /* ignore and retry */ }
             await new Promise(resolve => setTimeout(resolve, delay));
             delay *= 2;
         }
 
-        if (!response || !response.ok) {
-            const errorText = response ? await response.text() : 'No response';
-            throw new Error(`AI model failed to respond after retries. Error: ${errorText}`);
-        }
-        
+        if (!response || !response.ok) throw new Error("AI model failed to respond after retries.");
         const result = await response.json();
         const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) throw new Error("The AI model returned an empty response.");
         
-        // Robustly parse the JSON from the AI response, cleaning up markdown and other text.
         let jsonString = text;
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch && jsonMatch[0]) {
@@ -224,23 +217,32 @@ export default function App() {
                  throw new Error("AI response was not a valid object.");
             }
 
-            // More robust check. If the essential data isn't there, fail gracefully with a more informative error.
-            // Accommodate for slight variations in AI response keys.
-            const sequence = result.sequence || result.generated_sequence;
+            let sequence = result.sequence || result.generated_sequence || result.amino_acid_sequence || result.evolved_sequence;
             const pdbId = result.pdb_id;
+            
+            if (typeof sequence === 'object' && sequence !== null && sequence.amino_acid_sequence) {
+                sequence = sequence.amino_acid_sequence;
+            }
 
-            if (!sequence || !pdbId) {
-                console.error("Incomplete AI response received:", result);
-                // Try to find a meaningful error message from the AI's response to show the user.
-                const reason = result.analysis || result.analysis_function || result.error || "The AI did not provide a valid reason for failure.";
+            let analysisValue = result.analysis || result.analysis_function || result.function_analysis || result.analysis_goal || "Analysis not provided.";
+            if (typeof analysisValue === 'object' && analysisValue !== null) {
+                analysisValue = Object.values(analysisValue).join(' \n\n');
+            }
+
+            if (!sequence || typeof sequence !== 'string' || !pdbId) {
+                console.error("Incomplete or malformed AI response received:", result);
+                const reason = analysisValue || result.error || "The AI did not provide a valid sequence or PDB ID.";
                 throw new Error(`AI response was incomplete. Reason provided: "${reason}"`);
             }
 
             setGeneratedSequence(sequence);
-            setAnalysis(result.analysis || result.analysis_function || "Analysis not provided by AI.");
+            setAnalysis(analysisValue);
             setBindingAffinity(result.binding_affinity_score || result.simulated_binding_affinity_score || null);
             setPredictedStability(result.predicted_stability_score || null);
             setBindingPocketResidues(result.binding_pocket_residues || []);
+            setDesignConfidence(result.design_confidence || 'Unknown');
+            setValidationSteps(result.experimental_validation_steps || []);
+
 
             const pdb = await fetchPdbData(pdbId);
             if (pdb) {
@@ -251,7 +253,6 @@ export default function App() {
             }
         } catch (err) {
             console.error(err);
-            // Display the more informative error message to the user.
             setError(err.message);
         } finally {
             setIsLoading(false);
@@ -269,6 +270,16 @@ export default function App() {
         }
         const evolutionParams = { sequence: generatedSequence, feedback: evolutionPrompt };
         processApiResponse(callGeminiAPI(null, evolutionParams));
+    };
+
+    const ConfidencePill = ({ confidence }) => {
+        const styles = {
+            'High': 'bg-green-800 text-green-200 border-green-600',
+            'Promising': 'bg-yellow-800 text-yellow-200 border-yellow-600',
+            'Experimental': 'bg-red-800 text-red-200 border-red-600',
+            'Unknown': 'bg-gray-700 text-gray-300 border-gray-500',
+        };
+        return <span className={`px-3 py-1 text-sm font-bold rounded-full border ${styles[confidence] || styles['Unknown']}`}>{confidence}</span>;
     };
 
     return (
@@ -302,34 +313,46 @@ export default function App() {
 
                         {error && <div className="bg-red-900/50 border border-red-700 text-red-300 p-3 rounded-md">{error}</div>}
 
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-lg font-medium text-cyan-400 mb-2">3. AI Analysis</h3>
-                                <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md min-h-[80px] text-gray-300 italic">{analysis || "AI's analysis will appear here."}</div>
-                            </div>
-                             <div>
-                                <h3 className="text-lg font-medium text-cyan-400 mb-2">4. Performance Metrics</h3>
-                                <div className="grid grid-cols-2 gap-4 text-center">
-                                    <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
-                                        <div className="text-sm text-gray-400">Binding Affinity</div>
-                                        <div className={`text-2xl font-bold ${bindingAffinity ? 'text-green-400' : 'text-gray-500'}`}>{bindingAffinity ? `${bindingAffinity} kcal/mol` : 'N/A'}</div>
-                                    </div>
-                                    <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
-                                        <div className="text-sm text-gray-400">Predicted Stability</div>
-                                        <div className={`text-2xl font-bold ${predictedStability ? (predictedStability > 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-500'}`}>{predictedStability ? predictedStability.toFixed(2) : 'N/A'}</div>
+                        {generatedSequence && (
+                            <div className="space-y-4 pt-4">
+                                <div>
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">3. AI Analysis</h3>
+                                    <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md min-h-[80px] text-gray-300 italic">{analysis}</div>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">4. Performance Metrics</h3>
+                                    <div className="grid grid-cols-2 gap-4 text-center">
+                                        <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                                            <div className="text-sm text-gray-400">Binding Affinity</div>
+                                            <div className={`text-2xl font-bold ${bindingAffinity ? 'text-green-400' : 'text-gray-500'}`}>{bindingAffinity ? `${bindingAffinity} kcal/mol` : 'N/A'}</div>
+                                        </div>
+                                        <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                                            <div className="text-sm text-gray-400">Predicted Stability</div>
+                                            <div className={`text-2xl font-bold ${predictedStability !== null ? (Number(predictedStability) > 0 ? 'text-green-400' : 'text-red-400') : 'text-gray-500'}`}>{predictedStability !== null ? Number(predictedStability).toFixed(2) : 'N/A'}</div>
+                                        </div>
                                     </div>
                                 </div>
+                                <div className="bg-gray-900 p-4 rounded-lg border border-gray-700">
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-3 flex justify-between items-center">
+                                        <span>5. Design Validation</span>
+                                        <ConfidencePill confidence={designConfidence} />
+                                    </h3>
+                                    <p className="text-sm text-gray-400 mb-2">This is a computational prediction. Real-world validation requires the following lab work:</p>
+                                    <ol className="list-decimal list-inside text-gray-300 space-y-1">
+                                        {validationSteps.map((step, index) => <li key={index}>{step}</li>)}
+                                    </ol>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-medium text-cyan-400 mb-2">6. Generated Amino Acid Sequence</h3>
+                                    <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md font-mono text-sm break-words min-h-[120px]">{generatedSequence}</div>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-lg font-medium text-cyan-400 mb-2">5. Generated Amino Acid Sequence</h3>
-                                <div className="w-full p-3 bg-gray-900 border border-gray-600 rounded-md font-mono text-sm break-words min-h-[120px]">{generatedSequence || "Generated sequence will appear here."}</div>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Right Panel */}
                     <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700 flex flex-col">
-                         <h2 className="text-lg font-medium text-cyan-400 mb-4 text-center">6. Predicted 3D Structure</h2>
+                         <h2 className="text-lg font-medium text-cyan-400 mb-4 text-center">Predicted 3D Structure</h2>
                          <div className="flex-grow">
                             <ProteinViewer pdbData={pdbData} bindingPocketResidues={bindingPocketResidues} />
                          </div>
