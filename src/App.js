@@ -286,7 +286,7 @@ export default function App() {
         <div className="bg-gray-900 text-gray-200 min-h-screen font-sans p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
                 <header className="text-center mb-8">
-                    <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400">Evolutionary Protein Designer</h1>
+                    <h1 className="text-4xl sm:text-5xl font-bold text-cyan-400">Protein Designer</h1>
                     <p className="mt-2 text-lg text-gray-400">Design, analyze, and evolve novel proteins with AI.</p>
                 </header>
 
